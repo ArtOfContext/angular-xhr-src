@@ -1,6 +1,7 @@
 {
   "name": "angular-xhr-src",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "author": "Tom Dunn <tdunn@artofcontext.com> (http://www.artofcontext.com)",
   "description": "Request IMG src and LINK href via XHR and serve as Blob URL.  Useful for apps running under Content Security Policy (CSP).",
   "repository": {
     "type": "git",
