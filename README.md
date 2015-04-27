@@ -11,10 +11,10 @@ angular.module('myApp', ['xhrSrc'])
 
 ```
 <!-- use xhr-src instead of src and request will be made via XHR -->
-<img xhr-src="http://placehold.it/400x250/000000/ff0000/&text=xhr-src%20works!">
+<img xhr-src="http://cdn.jsdelivr.net/emojione/assets/png/1F414.png?v=1.2.4">
 ```
 
 ```
 <!-- use xhr-href instead of href and request will be made via XHR -->
-<link rel="stylesheet" xhr-href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.4/css/bootstrap.css">
+<link rel="stylesheet" xhr-href="http://getbootstrap.com/dist/css/bootstrap.min.css">
 ```
