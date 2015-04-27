@@ -1,7 +1,7 @@
 {
   "name": "angular-xhr-src",
   "description": "Request IMG src and LINK href via XHR and serve as Blob URL.  Useful for apps running under Content Security Policy (CSP).",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://github.com/ArtOfContext/angular-xhr-src",
   "license": "MIT",
   "keywords": ["angular", "xhr", "csp", "img src", "link href", "blob url"],
