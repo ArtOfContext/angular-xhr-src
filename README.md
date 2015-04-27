@@ -13,8 +13,10 @@ angular.module('myApp', ['xhrSrc'])
 <!-- use xhr-src instead of src and request will be made via XHR -->
 <img xhr-src="http://cdn.jsdelivr.net/emojione/assets/png/1F414.png?v=1.2.4">
 ```
+[Live demo](http://artofcontext.github.io/angular-xhr-src/demo/xhr-src/index.html)
 
 ```
 <!-- use xhr-href instead of href and request will be made via XHR -->
 <link rel="stylesheet" xhr-href="http://getbootstrap.com/dist/css/bootstrap.min.css">
 ```
+[Live demo](http://artofcontext.github.io/angular-xhr-src/demo/xhr-href/index.html)
