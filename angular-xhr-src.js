@@ -34,7 +34,9 @@
 								}
 							},
 							function(result) {
-								throw new Error('Result retrieving source ' + source + ': ' + result);
+								var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
+								var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
+								throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
 							}
 						);
 				}
