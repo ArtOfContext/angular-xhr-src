@@ -1,17 +1,18 @@
-/* global window */
+/* global window, chrome */
 
 (function(global, debug) {
 	'use strict';
 
+	var fileCache = {};
+
 	function xhrSrc($http, $window) {
 		var directive = {
-				restrict: 'A',
-				scope: true,
-				template: '',
-				replace: true,
-				link: linkFunction
-			},
-			fileCache = {};
+			restrict: 'A',
+			scope: true,
+			template: '',
+			replace: true,
+			link: linkFunction
+		};
 
 		return directive;
 
@@ -25,7 +26,7 @@
 				var cachedFileObject;
 
 				if (source !== undefined) {
-					cachedFileObject = fileCache[source];
+					cachedFileObject = retrieve(source);
 
 					if (cachedFileObject !== undefined) {
 						// cache hit, use it
@@ -41,10 +42,10 @@
 							.then(
 								function(response) {
 									// received response, cache it
-									fileCache[source] = $window.URL.createObjectURL(response.data);
+									store(source, $window.URL.createObjectURL(response.data));
 
 									// and use it
-									elementAssignResource(elt, fileCache[source]);
+									elementAssignResource(elt, retrieve(source));
 
 									updateDebug();
 								},
@@ -70,6 +71,46 @@
 				}
 			}
 		}
+	}
+
+	function useChromeStorage() {
+		return chrome !== undefined &&
+			chrome.storage !== undefined &&
+			chrome.storage.local !== undefined;
+	}
+
+	function store(key, fileObject) {
+		if (useChromeStorage()) {
+			storeChromeStorage(key, fileObject);
+		}
+		else {
+			storeFileCacheHash(key, fileObject);
+		}
+	}
+
+	function storeFileCacheHash(key, fileObject) {
+		fileCache[key] = fileObject;
+	}
+
+	function storeChromeStorage(key, fileObject) {
+		storeFileCacheHash(key, fileObject);
+	}
+
+	function retrieve(key) {
+		if (useChromeStorage()) {
+			return retrieveChromeStorage(key);
+		}
+		else {
+			return retrieveFileCacheHash(key);
+		}
+	}
+
+	function retrieveFileCacheHash(key) {
+		return fileCache[key];
+	}
+
+	function retrieveChromeStorage(key) {
+		return retrieveFileCacheHash(key);
 	}
 
 	if (debug) {
