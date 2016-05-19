@@ -1,4 +1,6 @@
-(function() {
+/* global window */
+
+(function(global, debug) {
 	'use strict';
 
 	function xhrSrc($http, $window) {
@@ -9,15 +11,7 @@
 				replace: true,
 				link: linkFunction
 			},
-			fileCache = {},
-			count = 0;
-
-		window.showTime = function() {
-			console.log((window.lastTime - window.firstTime) / 1000);
-
-			count = 0;
-			window.firstTime = window.lastTime = undefined;
-		}
+			fileCache = {};
 
 		return directive;
 
@@ -34,35 +28,33 @@
 					cachedFileObject = fileCache[source];
 
 					if (cachedFileObject !== undefined) {
+						// cache hit, use it
 						elementAssignResource(elt, cachedFileObject);
-					}
-					if (count === 0) {
-						window.firstTime = window.lastTime = +(new Date());
-					}
-					if (cachedFileObject !== undefined) {
-						window.lastTime = +(new Date());
-						count++;
+
+						updateDebug();
 
 						return;
 					}
+					else {
+						// not a cache hit, request it
+						$http.get(source, {responseType: 'blob'})
+							.then(
+								function(response) {
+									// received response, cache it
+									fileCache[source] = $window.URL.createObjectURL(response.data);
 
-					$http.get(source, {responseType: 'blob'})
-						.then(
-							function(response) {
-								fileCache[source] = $window.URL.createObjectURL(response.data);
-								elementAssignResource(elt, fileCache[source]);
+									// and use it
+									elementAssignResource(elt, fileCache[source]);
 
-								window.lastTime = +(new Date());
-
-								//console.log('xhrSrc: ' + count++);
-								count++;
-							},
-							function(result) {
-								var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
-								var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
-								throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
-							}
-						);
+									updateDebug();
+								},
+								function(result) {
+									var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
+									var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
+									throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
+								}
+							);
+					}
 				}
 			}
 
@@ -80,22 +72,43 @@
 		}
 	}
 
+	if (debug) {
+		// put on global scope so we can get time from console
+		global.xhrSrcShowTime = function() {
+			console.log((global.xhrSrcLastTime - global.xhrSrcFirstTime) / 1000);
+
+			global.xhrSrcItemCount = 0;
+			global.xhrSrcFirstTime = global.xhrSrcLastTime = undefined;
+		};
+	}
+
+	function updateDebug() {
+		if (debug) {
+			if (global.xhrSrcItemCount === undefined) {
+				global.xhrSrcItemCount = 0;
+			}
+
+			if (global.xhrSrcItemCount === 0) {
+				global.xhrSrcFirstTime = global.xhrSrcLastTime = +(new Date());
+				global.xhrSrcItemCount++;
+			}
+			else {
+				global.xhrSrcLastTime = +(new Date());
+				global.xhrSrcItemCount++;
+			}
+		}
+	}
+
+	/* --------------------------------------------------------- */
+
 	function xhrArrayBufferSrc($http, $window) {
 		var directive = {
-				restrict: 'A',
-				scope: true,
-				template: '',
-				replace: true,
-				link: linkFunction
-			},
-			count = 0;
-
-		window.showTime = function() {
-			console.log((window.lastTime - window.firstTime) / 1000);
-
-			count = 0;
-			window.firstTime = window.lastTime = undefined;
-		}
+			restrict: 'A',
+			scope: true,
+			template: '',
+			replace: true,
+			link: linkFunction
+		};
 
 		return directive;
 
@@ -107,10 +120,6 @@
 
 			function sourceAttributeObserver(source) {
 				if (source !== undefined) {
-
-					if (count === 0) {
-						window.firstTime = window.lastTime = +(new Date());
-					}
 
 					$http.get(source, {responseType: 'arraybuffer'})
 						.then(
@@ -148,11 +157,6 @@
 								else {
 									throw new Error('xhrArrayBufferSrc directive only supports setting LINK href and IMG src');
 								}
-
-								window.lastTime = +(new Date());
-
-								//console.log('xhrArrayBufferSrc: ' + count++);
-								count++;
 							},
 							function(result) {
 								var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
@@ -174,4 +178,5 @@
 	angular.module('xhrArrayBufferSrc')
 		.directive('xhrArrayBufferSrc', xhrArrayBufferSrc)
 		.directive('xhrArrayBufferHref', xhrArrayBufferSrc);
-})();
+
+})(window, true);
