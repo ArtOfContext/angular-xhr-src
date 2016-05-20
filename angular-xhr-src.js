@@ -23,53 +23,54 @@
 			attrs.$observe('xhrHref', sourceAttributeObserver);
 
 			function sourceAttributeObserver(source) {
-				var cachedFileObject;
-
 				if (source !== undefined) {
-					cachedFileObject = retrieve(source);
+					retrieve(source, function(cachedFileObject) {
+						if (cachedFileObject !== undefined) {
 
-					if (cachedFileObject !== undefined) {
-						// cache hit, use it
-						elementAssignResource(elt, cachedFileObject);
+							console.log('found in the cache');
+							// cache hit, use it
+							elementAssignResource(elt, $window.URL.createObjectURL(cachedFileObject));
 
-						updateDebug();
+							updateDebug();
 
-						return;
-					}
-					else {
-						// not a cache hit, request it
-						$http.get(source, {responseType: 'blob'})
-							.then(
-								function(response) {
-									// received response, cache it
-									store(source, $window.URL.createObjectURL(response.data));
+							return;
+						}
+						else {
+							console.log('NOT found in the cache, retrieving from XHR');
+							// not a cache hit, request it
+							$http.get(source, {responseType: 'blob'})
+								.then(
+									function(response) {
+										// received response, cache it
+										store(source, response.data);
 
-									// and use it
-									elementAssignResource(elt, retrieve(source));
+										// and use it
+										elementAssignResource(elt, $window.URL.createObjectURL(response.data));
 
-									updateDebug();
-								},
-								function(result) {
-									var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
-									var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
-									throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
-								}
-							);
-					}
+										updateDebug();
+									},
+									function(result) {
+										var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
+										var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
+										throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
+									}
+								);
+						}
+					});
 				}
 			}
+		}
+	}
 
-			function elementAssignResource(element, resource) {
-				if (element.tagName === 'LINK') {
-					element.href = resource;
-				}
-				else if (element.tagName === 'IMG') {
-					element.src = resource;
-				}
-				else {
-					throw new Error('xhrSrc directive only supports setting LINK href and IMG src');
-				}
-			}
+	function elementAssignResource(element, resource) {
+		if (element.tagName === 'LINK') {
+			element.href = resource;
+		}
+		else if (element.tagName === 'IMG') {
+			element.src = resource;
+		}
+		else {
+			throw new Error('xhrSrc directive only supports setting LINK href and IMG src');
 		}
 	}
 
@@ -93,24 +94,33 @@
 	}
 
 	function storeChromeStorage(key, fileObject) {
-		storeFileCacheHash(key, fileObject);
+		var valueToSet = {};
+		valueToSet[key] = fileObject;
+
+		chrome.storage.local.set(valueToSet, function () {
+			if (chrome.runtime.lastError !== undefined) {
+				throw new Error('Error caching file object results: ' + chrome.runtime.lastError.message);
+			}
+		});
 	}
 
-	function retrieve(key) {
+	function retrieve(key, callback) {
 		if (useChromeStorage()) {
-			return retrieveChromeStorage(key);
+			retrieveChromeStorage(key, callback);
 		}
 		else {
-			return retrieveFileCacheHash(key);
+			retrieveFileCacheHash(key, callback);
 		}
 	}
 
-	function retrieveFileCacheHash(key) {
-		return fileCache[key];
+	function retrieveFileCacheHash(key, callback) {
+		callback(fileCache[key]);
 	}
 
-	function retrieveChromeStorage(key) {
-		return retrieveFileCacheHash(key);
+	function retrieveChromeStorage(key, callback) {
+		chrome.storage.local.get(key, function(items) {
+			callback(items[key]);
+		});
 	}
 
 	if (debug) {
@@ -142,7 +152,7 @@
 
 	/* --------------------------------------------------------- */
 
-	function xhrArrayBufferSrc($http, $window) {
+	function xhrArrayBufferSrc($http) {
 		var directive = {
 			restrict: 'A',
 			scope: true,
@@ -162,51 +172,82 @@
 			function sourceAttributeObserver(source) {
 				if (source !== undefined) {
 
-					$http.get(source, {responseType: 'arraybuffer'})
-						.then(
-							function(response) {
-								var uInt8Array = new Uint8Array(response.data);
-								var i = uInt8Array.length;
-								var binaryString = new Array(i);
-								var imageType, lowercaseSource;
+					retrieve(source, function(cachedFileObject) {
+						if (cachedFileObject !== undefined) {
+							console.log('found in the cache');
 
-								while (i--)
-								{
-									binaryString[i] = String.fromCharCode(uInt8Array[i]);
-								}
-								var data = binaryString.join('');
-								var base64 = window.btoa(data);
+							// cache hit, use it
+							elementAssignResource(elt, cachedFileObject);
 
-								if (elt.tagName === 'LINK') {
-									elt.href = 'data:text/css;base64,' + base64;
-								}
-								else if (elt.tagName === 'IMG') {
-									lowercaseSource = source.toLowerCase();
+							updateDebug();
 
-									if (lowercaseSource.indexOf('.jpg') !== -1) {
-										imageType = 'image/jpg';
+							return;
+						}
+						else {
+							console.log('NOT found in the cache, retrieving from XHR');
+
+							$http.get(source, {responseType: 'arraybuffer'})
+								.then(
+									function(response) {
+										var base64 = getBase64Content(response.data),
+											dataUrl = getDataUrl(source, elt.tagName, base64);
+
+										// received response, cache it
+										store(source, dataUrl);
+
+										elementAssignResource(elt, dataUrl);
+
+										updateDebug();
+									},
+									function(result) {
+										var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
+										var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
+										throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
 									}
-									else if (lowercaseSource.indexOf('.gif') !== -1) {
-										imageType = 'image/gif';
-									}
-									else {
-										imageType = 'image/png';
-									}
+								);
+						}
+					});
 
-									elt.src = 'data:' + imageType + ';base64,' + base64;
-								}
-								else {
-									throw new Error('xhrArrayBufferSrc directive only supports setting LINK href and IMG src');
-								}
-							},
-							function(result) {
-								var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
-								var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
-								throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
-							}
-						);
 				}
 			}
+		}
+
+		function getBase64Content(responseData) {
+			var uInt8Array = new Uint8Array(responseData);
+			var i = uInt8Array.length;
+			var binaryString = new Array(i);
+
+			while (i--)
+			{
+				binaryString[i] = String.fromCharCode(uInt8Array[i]);
+			}
+			var data = binaryString.join('');
+			return window.btoa(data);
+		}
+
+		function getDataUrl(source, tagName, base64Content) {
+			var lowercaseSource = source.toLowerCase(),
+				imageType;
+
+			if (tagName === 'LINK' && lowercaseSource.indexOf('.css')) {
+				return 'data:text/css;base64,' + base64Content;
+			}
+			else if (tagName === 'IMG') {
+
+				if (lowercaseSource.indexOf('.jpg') !== -1) {
+					imageType = 'image/jpg';
+				}
+				else if (lowercaseSource.indexOf('.gif') !== -1) {
+					imageType = 'image/gif';
+				}
+				else {
+					imageType = 'image/png';
+				}
+
+				return 'data:' + imageType + ';base64,' + base64Content;
+			}
+
+			return '';
 		}
 	}
 
