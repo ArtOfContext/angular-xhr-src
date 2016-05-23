@@ -3,9 +3,7 @@
 (function(global, debug) {
 	'use strict';
 
-	var fileCache = {};
-
-	function xhrSrc($http, $window) {
+	function xhrSrc($http, $window, xhrSrcCacheService) {
 		var directive = {
 			restrict: 'A',
 			scope: true,
@@ -24,11 +22,12 @@
 
 			function sourceAttributeObserver(source) {
 				if (source !== undefined) {
-					retrieve(source, function(cachedFileObject) {
+					// as chrome.storage deals with primitive types and not blobs, only cache
+					// in local cache hash object
+					xhrSrcCacheService.retrieveFileCacheHash(source, function(cachedFileObject) {
 						if (cachedFileObject !== undefined) {
-
-							console.log('found in the cache');
 							// cache hit, use it
+							console.log('found in the cache');
 							elementAssignResource(elt, $window.URL.createObjectURL(cachedFileObject));
 
 							updateDebug();
@@ -36,24 +35,21 @@
 							return;
 						}
 						else {
-							console.log('NOT found in the cache, retrieving from XHR');
 							// not a cache hit, request it
+							console.log('NOT found in the cache, retrieving from XHR');
+
 							$http.get(source, {responseType: 'blob'})
 								.then(
 									function(response) {
-										// received response, cache it
-										store(source, response.data);
-
-										// and use it
+										// received response, use it
 										elementAssignResource(elt, $window.URL.createObjectURL(response.data));
+
+										// and cache it
+										xhrSrcCacheService.storeFileCacheHash(source, response.data);
 
 										updateDebug();
 									},
-									function(result) {
-										var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
-										var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
-										throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
-									}
+									logXHRError
 								);
 						}
 					});
@@ -74,53 +70,11 @@
 		}
 	}
 
-	function useChromeStorage() {
-		return chrome !== undefined &&
-			chrome.storage !== undefined &&
-			chrome.storage.local !== undefined;
-	}
-
-	function store(key, fileObject) {
-		if (useChromeStorage()) {
-			storeChromeStorage(key, fileObject);
-		}
-		else {
-			storeFileCacheHash(key, fileObject);
-		}
-	}
-
-	function storeFileCacheHash(key, fileObject) {
-		fileCache[key] = fileObject;
-	}
-
-	function storeChromeStorage(key, fileObject) {
-		var valueToSet = {};
-		valueToSet[key] = fileObject;
-
-		chrome.storage.local.set(valueToSet, function () {
-			if (chrome.runtime.lastError !== undefined) {
-				throw new Error('Error caching file object results: ' + chrome.runtime.lastError.message);
-			}
-		});
-	}
-
-	function retrieve(key, callback) {
-		if (useChromeStorage()) {
-			retrieveChromeStorage(key, callback);
-		}
-		else {
-			retrieveFileCacheHash(key, callback);
-		}
-	}
-
-	function retrieveFileCacheHash(key, callback) {
-		callback(fileCache[key]);
-	}
-
-	function retrieveChromeStorage(key, callback) {
-		chrome.storage.local.get(key, function(items) {
-			callback(items[key]);
-		});
+	function logXHRError(result) {
+		var resource = result.config.url;
+		var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
+		var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
+		throw new Error('Result retrieving resource ' + resource + ': ' + resultMessage);
 	}
 
 	if (debug) {
@@ -150,9 +104,7 @@
 		}
 	}
 
-	/* --------------------------------------------------------- */
-
-	function xhrArrayBufferSrc($http) {
+	function xhrArrayBufferSrc($http, xhrSrcCacheService) {
 		var directive = {
 			restrict: 'A',
 			scope: true,
@@ -172,11 +124,10 @@
 			function sourceAttributeObserver(source) {
 				if (source !== undefined) {
 
-					retrieve(source, function(cachedFileObject) {
+					xhrSrcCacheService.retrieve(source, function(cachedFileObject) {
 						if (cachedFileObject !== undefined) {
-							console.log('found in the cache');
-
 							// cache hit, use it
+							console.log('found in the cache');
 							elementAssignResource(elt, cachedFileObject);
 
 							updateDebug();
@@ -192,18 +143,14 @@
 										var base64 = getBase64Content(response.data),
 											dataUrl = getDataUrl(source, elt.tagName, base64);
 
-										// received response, cache it
-										store(source, dataUrl);
-
 										elementAssignResource(elt, dataUrl);
+
+										// received response, cache it
+										xhrSrcCacheService.store(source, dataUrl);
 
 										updateDebug();
 									},
-									function(result) {
-										var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
-										var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
-										throw new Error('Result retrieving source ' + source + ': ' + resultMessage);
-									}
+									logXHRError
 								);
 						}
 					});
@@ -251,13 +198,76 @@
 		}
 	}
 
+	function xhrSrcCacheService() {
+		var service = {
+				'store': store,
+				'retrieve': retrieve,
+				'storeFileCacheHash': storeFileCacheHash,
+				'retrieveFileCacheHash': retrieveFileCacheHash
+			},
+			fileCache = {};
+
+		return service;
+
+		function useChromeStorage() {
+			return chrome !== undefined &&
+				chrome.storage !== undefined &&
+				chrome.storage.local !== undefined;
+		}
+
+		function store(key, fileObject) {
+			if (useChromeStorage()) {
+				storeChromeStorage(key, fileObject);
+			}
+			else {
+				storeFileCacheHash(key, fileObject);
+			}
+		}
+
+		function storeFileCacheHash(key, fileObject) {
+			fileCache[key] = fileObject;
+		}
+
+		function storeChromeStorage(key, fileObject) {
+			var valueToSet = {};
+			valueToSet[key] = fileObject;
+
+			chrome.storage.local.set(valueToSet, function () {
+				if (chrome.runtime.lastError !== undefined) {
+					throw new Error('Error caching file object results: ' + chrome.runtime.lastError.message);
+				}
+			});
+		}
+
+		function retrieve(key, callback) {
+			if (useChromeStorage()) {
+				retrieveChromeStorage(key, callback);
+			}
+			else {
+				retrieveFileCacheHash(key, callback);
+			}
+		}
+
+		function retrieveFileCacheHash(key, callback) {
+			callback(fileCache[key]);
+		}
+
+		function retrieveChromeStorage(key, callback) {
+			chrome.storage.local.get(key, function(items) {
+				callback(items[key]);
+			});
+		}
+	}
+
 	angular.module('xhrSrc', []);
 	angular.module('xhrSrc')
+		.factory('xhrSrcCacheService', xhrSrcCacheService)
 		.directive('xhrSrc', xhrSrc)
 		.directive('xhrHref', xhrSrc);
 
 	angular.module('xhrArrayBufferSrc', []);
 	angular.module('xhrArrayBufferSrc')
+		.factory('xhrSrcCacheService', xhrSrcCacheService)
 		.directive('xhrArrayBufferSrc', xhrArrayBufferSrc)
 		.directive('xhrArrayBufferHref', xhrArrayBufferSrc);
 
