@@ -31,7 +31,7 @@
 					xhrSrcCacheService.retrieveFileCacheHash(source, function(cachedFileObject) {
 						if (cachedFileObject !== undefined) {
 							// cache hit, use it
-							console.log('found in the cache');
+							debugLog('found in the cache');
 							elementAssignResource(elt, $window.URL.createObjectURL(cachedFileObject));
 
 							updateDebug();
@@ -40,7 +40,7 @@
 						}
 						else {
 							// not a cache hit, request it
-							console.log('NOT found in the cache, retrieving from XHR');
+							debugLog('NOT found in the cache, retrieving from XHR');
 
 							$http.get(source, {responseType: 'blob'})
 								.then(
@@ -85,7 +85,7 @@
 					xhrSrcCacheService.retrieve(source, function(cachedFileObject) {
 						if (cachedFileObject !== undefined) {
 							// cache hit, use it
-							console.log('found in the cache');
+							debugLog('found in the cache');
 							elementAssignResource(elt, cachedFileObject);
 
 							updateDebug();
@@ -93,7 +93,7 @@
 							return;
 						}
 						else {
-							console.log('NOT found in the cache, retrieving from XHR');
+							debugLog('NOT found in the cache, retrieving from XHR');
 
 							$http.get(source, {responseType: 'arraybuffer'})
 								.then(
@@ -268,6 +268,12 @@
 		}
 	}
 
+	function debugLog(message) {
+		if (debug) {
+			console.log(message);
+		}
+	}
+
 	/*******************************************************/
 	// Angular registrations
 
@@ -283,4 +289,4 @@
 		.directive('xhrArrayBufferSrc', xhrArrayBufferSrc)
 		.directive('xhrArrayBufferHref', xhrArrayBufferSrc);
 
-})(window, true);
+})(window, false);
