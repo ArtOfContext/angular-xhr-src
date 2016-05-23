@@ -3,6 +3,10 @@
 (function(global, debug) {
 	'use strict';
 
+	var debugRequestTimeSpanFirst,
+		debugRequestTimeSpanLast,
+		debugItemCount;
+
 	function xhrSrc($http, $window, xhrSrcCacheService) {
 		var directive = {
 			restrict: 'A',
@@ -54,52 +58,6 @@
 						}
 					});
 				}
-			}
-		}
-	}
-
-	function elementAssignResource(element, resource) {
-		if (element.tagName === 'LINK') {
-			element.href = resource;
-		}
-		else if (element.tagName === 'IMG') {
-			element.src = resource;
-		}
-		else {
-			throw new Error('xhrSrc directive only supports setting LINK href and IMG src');
-		}
-	}
-
-	function logXHRError(result) {
-		var resource = result.config.url;
-		var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
-		var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
-		throw new Error('Result retrieving resource ' + resource + ': ' + resultMessage);
-	}
-
-	if (debug) {
-		// put on global scope so we can get time from console
-		global.xhrSrcShowTime = function() {
-			console.log((global.xhrSrcLastTime - global.xhrSrcFirstTime) / 1000);
-
-			global.xhrSrcItemCount = 0;
-			global.xhrSrcFirstTime = global.xhrSrcLastTime = undefined;
-		};
-	}
-
-	function updateDebug() {
-		if (debug) {
-			if (global.xhrSrcItemCount === undefined) {
-				global.xhrSrcItemCount = 0;
-			}
-
-			if (global.xhrSrcItemCount === 0) {
-				global.xhrSrcFirstTime = global.xhrSrcLastTime = +(new Date());
-				global.xhrSrcItemCount++;
-			}
-			else {
-				global.xhrSrcLastTime = +(new Date());
-				global.xhrSrcItemCount++;
 			}
 		}
 	}
@@ -198,6 +156,27 @@
 		}
 	}
 
+	function elementAssignResource(element, resource) {
+		if (element.tagName === 'LINK') {
+			element.href = resource;
+		}
+		else if (element.tagName === 'IMG') {
+			element.src = resource;
+		}
+		else {
+			throw new Error('xhrSrc directive only supports setting LINK href and IMG src');
+		}
+	}
+
+	function logXHRError(result) {
+		var resource = result.config.url;
+		var data = typeof(result.data) === "object" ? JSON.stringify(result.data) : result.data;
+		var resultMessage = 'status code: ' + result.status + ' status: ' + result.statusText + ' data: ' + data;
+		throw new Error('Result retrieving resource ' + resource + ': ' + resultMessage);
+	}
+
+	/*******************************************************/
+
 	function xhrSrcCacheService() {
 		var service = {
 				'store': store,
@@ -258,6 +237,39 @@
 			});
 		}
 	}
+
+	/*******************************************************/
+	// Debug helpers
+
+	if (debug) {
+		// put on global scope so we can get time from console
+		global.xhrSrcShowTime = function() {
+			console.log((debugRequestTimeSpanLast - debugRequestTimeSpanFirst) / 1000);
+
+			debugItemCount = 0;
+			debugRequestTimeSpanFirst = debugRequestTimeSpanLast = undefined;
+		};
+	}
+
+	function updateDebug() {
+		if (debug) {
+			if (debugItemCount === undefined) {
+				debugItemCount = 0;
+			}
+
+			if (debugItemCount === 0) {
+				debugRequestTimeSpanFirst = debugRequestTimeSpanLast = +(new Date());
+				debugItemCount++;
+			}
+			else {
+				debugRequestTimeSpanLast = +(new Date());
+				debugItemCount++;
+			}
+		}
+	}
+
+	/*******************************************************/
+	// Angular registrations
 
 	angular.module('xhrSrc', []);
 	angular.module('xhrSrc')
